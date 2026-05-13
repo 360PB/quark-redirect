@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跳转链接生成器</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #333;
+    }
+    .container { max-width: 680px; margin: 0 auto; }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    .subtitle { color: #999; font-size: 14px; margin-bottom: 28px; }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .card h2 { font-size: 16px; font-weight: 500; margin-bottom: 16px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      color: #555;
+      margin-bottom: 6px;
+    }
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #00b4ff;
+    }
+    .form-group .hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 32px;
+      background: #00b4ff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #0099dd; }
+    .btn-block { width: 100%; }
+
+    .result { display: none; }
+    .result.show { display: block; }
+
+    .link-box {
+      background: #f8f9fa;
+      border: 1px solid #e8e8e8;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 14px;
+      word-break: break-all;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    .link-box .copy-btn {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      padding: 4px 10px;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .link-box .copy-btn:hover { border-color: #00b4ff; color: #00b4ff; }
+    .link-box .copy-btn.copied { background: #52c41a; color: #fff; border-color: #52c41a; }
+
+    .tag-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .tag {
+      padding: 6px 12px;
+      background: #f0f0f0;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tag:hover { background: #e6f7ff; color: #00b4ff; }
+    .tag.active { background: #00b4ff; color: #fff; }
+
+    .code-block {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+      margin-top: 12px;
+      font-family: 'Consolas', 'Monaco', monospace;
+    }
+    .code-block .key { color: #9cdcfe; }
+    .code-block .str { color: #ce9178; }
+
+    .divider {
+      height: 1px;
+      background: #f0f0f0;
+      margin: 16px 0;
+    }
+
+    .project-list { margin-top: 8px; }
+    .project-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .project-item .name { font-weight: 500; }
+    .project-item .id { color: #999; font-size: 12px; }
+    .project-item .del { color: #ff4d4f; cursor: pointer; font-size: 12px; }
+
+    .save-hint {
+      background: #fff7e6;
+      border: 1px solid #ffd591;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      color: #ad6800;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>跳转链接生成器</h1>
+    <p class="subtitle">输入网盘链接，生成带统计的跳转 URL</p>
+
+    <div class="card">
+      <h2>添加项目</h2>
+      <div class="form-group">
+        <label>项目名称（如：Python入门教程）</label>
+        <input type="text" id="projectName" placeholder="输入项目名称">
+      </div>
+      <div class="form-group">
+        <label>网盘链接</label>
+        <input type="text" id="panUrl" placeholder="https://pan.quark.cn/s/xxxxx">
+        <p class="hint">支持夸克网盘、百度网盘、阿里云盘等任意链接</p>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>项目标识（英文/数字）</label>
+          <input type="text" id="projectId" placeholder="自动生成">
+        </div>
+        <div class="form-group">
+          <label>域名（自动读取）</label>
+          <input type="text" id="domain" placeholder="https://xxx.workers.dev">
+        </div>
+      </div>
+      <button class="btn btn-block" onclick="generate()">生成跳转链接</button>
+    </div>
+
+    <div class="card result" id="resultCard">
+      <h2>生成的链接</h2>
+      <div class="link-box">
+        <span id="resultLink"></span>
+        <button class="copy-btn" onclick="copyLink(this)" data-target="resultLink">复制</button>
+      </div>
+
+      <h2 style="margin-top:16px">选择来源（可选，自动识别时不用加）</h2>
+      <div class="tag-list" id="sourceTags"></div>
+
+      <div class="divider"></div>
+
+      <h2>配置代码（更新 config/links.js）</h2>
+      <div class="link-box">
+        <span id="configCode"></span>
+        <button class="copy-btn" onclick="copyLink(this)" data-target="configCode">复制</button>
+      </div>
+
+      <div class="save-hint">
+        把上面的代码粘贴到 <code>config/links.js</code> 的 <code>projects</code> 对象里，然后重新部署即可生效。
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>已添加的项目</h2>
+      <div class="project-list" id="projectList">
+        <p style="color:#999;font-size:13px;">暂无项目，请在上方添加</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>批量导出配置</h2>
+      <div class="code-block" id="batchCode">// 先添加项目...</div>
+      <button class="btn btn-block" style="margin-top:12px;" onclick="copyBatch()">复制完整配置</button>
+    </div>
+  </div>
+
+  <script>
+    // 自动读取当前域名
+    const defaultDomain = location.origin;
+    document.getElementById('domain').value = defaultDomain;
+
+    // 来源标签
+    const sources = {
+      'douyin': '抖音',
+      'xiaohongshu': '小红书',
+      'wx': '微信',
+      'zhihu': '知乎',
+      'bilibili': 'B站',
+      'weibo': '微博',
+      'qq': 'QQ',
+      'tieba': '百度贴吧',
+      'baidu': '百度',
+      'forumA': '论坛'
+    };
+
+    const sourceTagsEl = document.getElementById('sourceTags');
+    let activeSource = '';
+
+    Object.entries(sources).forEach(([key, name]) => {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = name;
+      tag.onclick = () => {
+        if (activeSource === key) {
+          activeSource = '';
+          tag.classList.remove('active');
+        } else {
+          activeSource = key;
+          document.querySelectorAll('.tag').forEach(t => t.classList.remove('active'));
+          tag.classList.add('active');
+        }
+        updateResultLink();
+      };
+      sourceTagsEl.appendChild(tag);
+    });
+
+    // 项目名称转项目标识
+    document.getElementById('projectName').addEventListener('input', function() {
+      const name = this.value.trim();
+      if (!document.getElementById('projectId').value || document.getElementById('projectId').dataset.auto) {
+        const id = name
+          .replace(/[^\w一-龥]/g, '')
+          .substring(0, 10)
+          .toLowerCase();
+        document.getElementById('projectId').value = id || '';
+        document.getElementById('projectId').dataset.auto = 'true';
+      }
+    });
+
+    document.getElementById('projectId').addEventListener('input', function() {
+      delete this.dataset.auto;
+    });
+
+    let projects = JSON.parse(localStorage.getItem('qr_projects') || '[]');
+    renderProjectList();
+
+    function generate() {
+      const name = document.getElementById('projectName').value.trim();
+      const url = document.getElementById('panUrl').value.trim();
+      const id = document.getElementById('projectId').value.trim() || 'p' + Date.now();
+      const domain = document.getElementById('domain').value.trim() || defaultDomain;
+
+      if (!name || !url) {
+        alert('请填写项目名称和网盘链接');
+        return;
+      }
+      if (!/^https?:\/\//.test(url)) {
+        alert('网盘链接必须以 http:// 或 https:// 开头');
+        return;
+      }
+
+      // 保存到本地列表
+      const existing = projects.findIndex(p => p.id === id);
+      const project = { id, name, url };
+      if (existing >= 0) {
+        projects[existing] = project;
+      } else {
+        projects.push(project);
+      }
+      localStorage.setItem('qr_projects', JSON.stringify(projects));
+
+      // 显示结果
+      document.getElementById('resultCard').classList.add('show');
+      updateResultLink();
+      renderProjectList();
+      renderBatchCode();
+    }
+
+    function updateResultLink() {
+      const id = document.getElementById('projectId').value.trim();
+      const domain = document.getElementById('domain').value.trim() || defaultDomain;
+
+      let link = domain + '/?p=' + encodeURIComponent(id);
+      if (activeSource) {
+        link += '&s=' + activeSource;
+      }
+      document.getElementById('resultLink').textContent = link;
+
+      const name = document.getElementById('projectName').value.trim();
+      const url = document.getElementById('panUrl').value.trim();
+      const config = "    '" + id + "': {\n" +
+        "      name: '" + name.replace(/'/g, "\\'") + "',\n" +
+        "      url: '" + url + "',\n" +
+        "      desc: ''\n" +
+        "    }";
+      document.getElementById('configCode').textContent = config;
+    }
+
+    function renderProjectList() {
+      const el = document.getElementById('projectList');
+      if (!projects.length) {
+        el.innerHTML = '<p style="color:#999;font-size:13px;">暂无项目，请在上方添加</p>';
+        return;
+      }
+      el.innerHTML = projects.map(p => `
+        <div class="project-item">
+          <div>
+            <span class="name">${p.name}</span>
+            <span class="id">(${p.id})</span>
+          </div>
+          <span class="del" onclick="deleteProject('${p.id}')">删除</span>
+        </div>
+      `).join('');
+    }
+
+    function deleteProject(id) {
+      projects = projects.filter(p => p.id !== id);
+      localStorage.setItem('qr_projects', JSON.stringify(projects));
+      renderProjectList();
+      renderBatchCode();
+    }
+
+    function renderBatchCode() {
+      const code = projects.map(p =>
+        "    '" + p.id + "': {\n" +
+        "      name: '" + p.name.replace(/'/g, "\\'") + "',\n" +
+        "      url: '" + p.url + "',\n" +
+        "      desc: ''\n" +
+        "    }"
+      ).join(',\n');
+      document.getElementById('batchCode').innerHTML = code
+        ? '<span class="key">projects</span>: {\n' + code.replace(/'/g, '<span class="str">\'').replace(/:/g, '</span>:').replace(/\n/g, '<br>') + '\n  }'
+        : '// 先添加项目...';
+    }
+
+    function copyLink(btn) {
+      const targetId = btn.dataset.target;
+      const text = document.getElementById(targetId).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '已复制';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = '复制';
+          btn.classList.remove('copied');
+        }, 1500);
+      });
+    }
+
+    function copyBatch() {
+      const code = document.getElementById('batchCode').innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        alert('已复制到剪贴板');
+      });
+    }
+  </script>
+</body>
+</html>

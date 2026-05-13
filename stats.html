@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跳转统计看板</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #f0f2f5;
+      padding: 20px;
+      color: #333;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 20px; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card { background: #fff; border-radius: 8px; padding: 16px; }
+    .card h3 { font-size: 14px; color: #666; margin-bottom: 12px; font-weight: 500; }
+    .stat-value { font-size: 28px; font-weight: 600; color: #00b4ff; }
+    .stat-label { font-size: 12px; color: #999; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+    th { color: #666; font-weight: 500; background: #fafafa; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+    .tag-project { background: #e6f7ff; color: #00b4ff; }
+    .tag-source { background: #f6ffed; color: #52c41a; }
+    .empty { text-align: center; color: #999; padding: 40px; }
+    .btn { padding: 6px 16px; border: 1px solid #d9d9d9; background: #fff; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .btn:hover { border-color: #00b4ff; color: #00b4ff; }
+    .actions { margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 跳转数据统计（本地）</h1>
+    <div class="actions">
+      <button class="btn" onclick="clearData()">清空数据</button>
+      <button class="btn" onclick="exportData()">导出JSON</button>
+    </div>
+
+    <div class="grid" id="summaryCards">
+      <div class="card"><h3>总点击数</h3><div class="stat-value" id="totalClicks">0</div></div>
+      <div class="card"><h3>今日点击</h3><div class="stat-value" id="todayClicks">0</div></div>
+      <div class="card"><h3>项目数</h3><div class="stat-value" id="projectCount">0</div></div>
+      <div class="card"><h3>来源数</h3><div class="stat-value" id="sourceCount">0</div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>🔥 项目排行（哪个最火）</h3>
+        <table><thead><tr><th>项目</th><th>点击</th></tr></thead><tbody id="projectRank"></tbody></table>
+      </div>
+      <div class="card">
+        <h3>📢 来源排行（哪转化高）</h3>
+        <table><thead><tr><th>来源</th><th>点击</th></tr></thead><tbody id="sourceRank"></tbody></table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>⏰ 时段分布（24小时）</h3>
+      <div id="hourChart" style="height: 120px; display: flex; align-items: flex-end; gap: 4px; padding-top: 20px;"></div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <h3>📝 最近记录</h3>
+      <table>
+        <thead><tr><th>时间</th><th>项目</th><th>来源</th></tr></thead>
+        <tbody id="recentLogs"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function loadData() {
+      try { return JSON.parse(localStorage.getItem('qr_logs') || '[]'); }
+      catch(e) { return []; }
+    }
+
+    function render() {
+      const logs = loadData();
+      if (!logs.length) { document.body.innerHTML = '<div class="container empty">暂无数据，请先访问跳转页产生点击</div>'; return; }
+
+      // 汇总
+      document.getElementById('totalClicks').textContent = logs.length;
+      const today = new Date().toDateString();
+      document.getElementById('todayClicks').textContent = logs.filter(l => new Date(l.ts).toDateString() === today).length;
+
+      const projects = [...new Set(logs.map(l => l.projectName))];
+      const sources = [...new Set(logs.map(l => l.sourceName))];
+      document.getElementById('projectCount').textContent = projects.length;
+      document.getElementById('sourceCount').textContent = sources.length;
+
+      // 项目排行
+      const pCount = {};
+      logs.forEach(l => { pCount[l.projectName] = (pCount[l.projectName]||0)+1; });
+      const pRank = Object.entries(pCount).sort((a,b) => b[1]-a[1]).slice(0,10);
+      document.getElementById('projectRank').innerHTML = pRank.map(([name,count]) =>
+        `<tr><td><span class="tag tag-project">${name}</span></td><td>${count}</td></tr>`
+      ).join('') || '<tr><td colspan="2" style="color:#999">暂无</td></tr>';
+
+      // 来源排行
+      const sCount = {};
+      logs.forEach(l => { sCount[l.sourceName] = (sCount[l.sourceName]||0)+1; });
+      const sRank = Object.entries(sCount).sort((a,b) => b[1]-a[1]).slice(0,10);
+      document.getElementById('sourceRank').innerHTML = sRank.map(([name,count]) =>
+        `<tr><td><span class="tag tag-source">${name}</span></td><td>${count}</td></tr>`
+      ).join('') || '<tr><td colspan="2" style="color:#999">暂无</td></tr>';
+
+      // 时段分布
+      const hours = new Array(24).fill(0);
+      logs.forEach(l => { hours[new Date(l.ts).getHours()]++; });
+      const maxH = Math.max(...hours, 1);
+      document.getElementById('hourChart').innerHTML = hours.map((h,i) =>
+        `<div style="flex:1;height:${(h/maxH*100)}%;background:${h? '#00b4ff':'#e8e8e8'};border-radius:2px;position:relative;" title="${i}:00 - ${h}次">
+          <span style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:10px;color:#666;">${h?h:''}</span>
+        </div>`
+      ).join('');
+
+      // 最近记录
+      document.getElementById('recentLogs').innerHTML = logs.slice(-20).reverse().map(l =>
+        `<tr><td>${new Date(l.ts).toLocaleString('zh-CN')}</td><td>${l.projectName}</td><td>${l.sourceName}</td></tr>`
+      ).join('');
+    }
+
+    function clearData() { if(confirm('确定清空所有本地统计数据？')) { localStorage.removeItem('qr_logs'); location.reload(); } }
+    function exportData() {
+      const data = loadData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `quark-stats-${Date.now()}.json`; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    render();
+  </script>
+</body>
+</html>

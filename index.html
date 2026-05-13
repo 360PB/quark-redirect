@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资源跳转中...</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      color: #333;
+    }
+    .container {
+      text-align: center;
+      padding: 40px 20px;
+      max-width: 400px;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e0e0e0;
+      border-top-color: #00b4ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { font-size: 18px; font-weight: 500; margin-bottom: 8px; }
+    p { font-size: 14px; color: #999; margin-bottom: 24px; }
+    .info-box {
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: left;
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+    }
+    .info-box .label { color: #999; display: inline-block; width: 60px; }
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 10px 32px;
+      background: #00b4ff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #0099dd; }
+    .error { color: #ff4d4f; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner"></div>
+    <h1>正在跳转至夸克网盘...</h1>
+    <p id="statusText">请稍候，资源加载中</p>
+    <div class="info-box" id="infoBox" style="display:none;">
+      <div><span class="label">项目：</span><span id="projectName">-</span></div>
+      <div><span class="label">来源：</span><span id="sourceName">-</span></div>
+      <div><span class="label">时间：</span><span id="timeStr">-</span></div>
+    </div>
+    <a href="#" class="btn" id="manualBtn" style="display:none;">手动跳转</a>
+  </div>
+
+  <script src="config/links.js"></script>
+  <script>
+    (function() {
+      // ===== 1. 解析参数 =====
+      const params = new URLSearchParams(location.search);
+      const project = params.get('p') || params.get('project') || 'default';
+      let source = params.get('s') || params.get('source') || '';
+      let sourceName = '';
+      const rawReferrer = document.referrer || '';
+
+      // 自动识别来源（URL参数优先级最高，未传参时识别referrer）
+      if (!source) {
+        if (rawReferrer && LINKS.referrerRules) {
+          try {
+            const refHost = new URL(rawReferrer).hostname;
+            for (const rule of LINKS.referrerRules) {
+              if (rule.match.test(refHost)) {
+                source = rule.source;
+                sourceName = rule.name;
+                break;
+              }
+            }
+          } catch(e) {}
+        }
+        // 兜底
+        if (!source) {
+          source = 'direct';
+          sourceName = rawReferrer ? '未知来源(' + rawReferrer.replace(/^https?:\/\//, '').split('/')[0] + ')' : '直接访问';
+        }
+      }
+      if (!sourceName) {
+        sourceName = (LINKS.sources && LINKS.sources[source]) || source || '直接访问';
+      }
+
+      const timestamp = Date.now();
+      const dateStr = new Date().toLocaleString('zh-CN');
+
+      // ===== 2. 获取目标链接 =====
+      let targetUrl = LINKS.defaultUrl;
+      let projectName = '默认项目';
+
+      if (LINKS.projects && LINKS.projects[project]) {
+        targetUrl = LINKS.projects[project].url;
+        projectName = LINKS.projects[project].name;
+      }
+
+      // ===== 3. 显示信息（调试用，生产环境可隐藏） =====
+      document.getElementById('projectName').textContent = projectName;
+      document.getElementById('sourceName').textContent = sourceName;
+      document.getElementById('timeStr').textContent = dateStr;
+      document.getElementById('infoBox').style.display = 'block';
+      document.getElementById('manualBtn').href = targetUrl;
+      document.getElementById('manualBtn').style.display = 'inline-block';
+
+      // ===== 4. 发送统计（多种方案，选一种启用） =====
+      const statsType = STATS_CONFIG.type || 'none';
+      const statsData = {
+        project: project,
+        projectName: projectName,
+        source: source,
+        sourceName: sourceName,
+        referrer: rawReferrer,
+        url: location.href,
+        ua: navigator.userAgent,
+        ts: timestamp
+      };
+
+      try {
+        switch(statsType) {
+          case 'cloudflare':
+            // Cloudflare Workers + D1
+            if (STATS_CONFIG.apiEndpoint) {
+              navigator.sendBeacon(STATS_CONFIG.apiEndpoint, JSON.stringify(statsData));
+            }
+            break;
+
+          case 'baidu':
+            // 百度统计事件追踪
+            if (window._hmt && STATS_CONFIG.baiduId) {
+              _hmt.push(['_trackEvent', 'quark', 'click', project + '_' + source]);
+            }
+            break;
+
+          case 'umami':
+            // Umami 统计
+            if (window.umami) {
+              umami.track('quark-click', statsData);
+            }
+            break;
+
+          case 'cnzz':
+            // 友盟统计
+            if (window._czc && STATS_CONFIG.cnzzId) {
+              _czc.push(['_trackEvent', 'quark', 'click', project + '_' + source]);
+            }
+            break;
+
+          default:
+            // 无统计或本地存储（兜底方案）
+            try {
+              const logs = JSON.parse(localStorage.getItem('qr_logs') || '[]');
+              logs.push(statsData);
+              localStorage.setItem('qr_logs', JSON.stringify(logs.slice(-500))); // 保留最近500条
+            } catch(e) {}
+        }
+      } catch(e) {
+        console.error('统计上报失败:', e);
+      }
+
+      // ===== 5. 极速跳转 =====
+      // 使用 replace 避免返回按钮回到此页
+      setTimeout(function() {
+        window.location.replace(targetUrl);
+      }, 300); // 300ms 足够统计上报，用户几乎无感知
+
+    })();
+  </script>
+
+  <!-- 百度统计（如启用方案3，取消注释并填写ID） -->
+  <!--
+  <script>
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?你的百度统计ID";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+  -->
+
+  <!-- Umami（如启用方案2，取消注释并填写配置） -->
+  <!--
+  <script async src="https://你的umami地址/script.js" data-website-id="your-website-id"></script>
+  -->
+</body>
+</html>

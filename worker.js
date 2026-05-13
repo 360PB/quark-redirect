@@ -25,7 +25,7 @@ export default {
         const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
         const now = Date.now();
 
-        await env.DB.prepare(`
+        await env.MY_BINDING.prepare(`
           INSERT INTO clicks (project, project_name, source, source_name, url, ua, ip, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `).bind(
@@ -49,7 +49,7 @@ export default {
 
         switch(type) {
           case 'summary':
-            result = await env.DB.prepare(`
+            result = await env.MY_BINDING.prepare(`
               SELECT
                 COUNT(*) as total,
                 COUNT(DISTINCT project) as projects,
@@ -61,7 +61,7 @@ export default {
 
           case 'projects':
             // 哪个项目最火
-            result = await env.DB.prepare(`
+            result = await env.MY_BINDING.prepare(`
               SELECT project_name as name, COUNT(*) as count
               FROM clicks
               GROUP BY project_name
@@ -72,7 +72,7 @@ export default {
 
           case 'sources':
             // 哪个论坛转化高
-            result = await env.DB.prepare(`
+            result = await env.MY_BINDING.prepare(`
               SELECT source_name as name, COUNT(*) as count
               FROM clicks
               GROUP BY source_name
@@ -83,7 +83,7 @@ export default {
 
           case 'hours':
             // 哪个时间段流量大
-            result = await env.DB.prepare(`
+            result = await env.MY_BINDING.prepare(`
               SELECT
                 CAST(strftime('%H', datetime(created_at/1000, 'unixepoch')) AS INTEGER) as hour,
                 COUNT(*) as count
@@ -95,7 +95,7 @@ export default {
             break;
 
           case 'today':
-            result = await env.DB.prepare(`
+            result = await env.MY_BINDING.prepare(`
               SELECT * FROM clicks
               WHERE created_at > ?
               ORDER BY created_at DESC
@@ -105,7 +105,7 @@ export default {
 
           case 'trend':
             // 最近7天趋势
-            result = await env.DB.prepare(`
+            result = await env.MY_BINDING.prepare(`
               SELECT
                 date(created_at/1000, 'unixepoch') as day,
                 COUNT(*) as count

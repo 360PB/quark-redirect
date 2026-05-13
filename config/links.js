@@ -64,7 +64,7 @@ const LINKS = {
 // 统计 API 配置（选一种即可）
 const STATS_CONFIG = {
   // 方案1: 自建 Cloudflare Workers + D1（推荐，国内快）
-  // apiEndpoint: 'https://你的域名.workers.dev/log',
+  apiEndpoint: 'https://quark-redirect.18633816783.workers.dev/log',
 
   // 方案2: Umami 统计（自托管或 umami.is）
   // umamiWebsiteId: 'your-website-id',
@@ -77,5 +77,5 @@ const STATS_CONFIG = {
   // cnzzId: '你的CNZZ ID'
 
   // 当前使用的方案
-  type: 'none' // 改为 'cloudflare' / 'umami' / 'baidu' / 'cnzz'
+  type: 'cloudflare' // 改为 'cloudflare' / 'umami' / 'baidu' / 'cnzz'
 };

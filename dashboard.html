@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跳转数据看板</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    h1 { font-size: 20px; font-weight: 600; }
+    .mode-tag {
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: #e6f7ff;
+      color: #00b4ff;
+    }
+    .mode-tag.offline { background: #fff7e6; color: #fa8c16; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .card h3 { font-size: 13px; color: #888; margin-bottom: 8px; font-weight: 500; }
+    .card .value { font-size: 32px; font-weight: 700; color: #333; }
+    .card .value.up { color: #52c41a; }
+    .card .change { font-size: 12px; color: #999; margin-top: 4px; }
+
+    .section { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    @media (max-width: 768px) { .section { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .panel h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+    th { color: #888; font-weight: 500; font-size: 12px; }
+    tr:hover td { background: #fafafa; }
+    .bar { height: 6px; background: #f0f0f0; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+    .bar-fill { height: 100%; background: #00b4ff; border-radius: 3px; transition: width 0.3s; }
+    .bar-fill.green { background: #52c41a; }
+    .bar-fill.orange { background: #fa8c16; }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .tag-blue { background: #e6f7ff; color: #00b4ff; }
+    .tag-green { background: #f6ffed; color: #52c41a; }
+    .tag-orange { background: #fff7e6; color: #fa8c16; }
+
+    .chart { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding-top: 20px; }
+    .chart-bar {
+      flex: 1;
+      background: #e8e8e8;
+      border-radius: 2px 2px 0 0;
+      position: relative;
+      min-height: 2px;
+      transition: background 0.2s;
+    }
+    .chart-bar.has-data { background: #00b4ff; }
+    .chart-bar:hover { background: #0099dd; }
+    .chart-bar .tip {
+      position: absolute;
+      top: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: #666;
+      white-space: nowrap;
+    }
+    .chart-labels { display: flex; gap: 3px; margin-top: 4px; }
+    .chart-labels span { flex: 1; text-align: center; font-size: 10px; color: #bbb; }
+
+    .empty { text-align: center; color: #bbb; padding: 40px; font-size: 14px; }
+
+    .actions { display: flex; gap: 8px; margin-bottom: 20px; }
+    .btn {
+      padding: 8px 16px;
+      border: 1px solid #e0e0e0;
+      background: #fff;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover { border-color: #00b4ff; color: #00b4ff; }
+    .btn-primary { background: #00b4ff; color: #fff; border-color: #00b4ff; }
+    .btn-primary:hover { background: #0099dd; }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; }
+
+    .recent-table td { font-size: 12px; }
+    .recent-table .time { color: #888; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>跳转数据看板</h1>
+      <span class="mode-tag offline" id="modeTag">本地模式</span>
+    </header>
+
+    <div class="actions">
+      <button class="btn" onclick="refreshData()">刷新</button>
+      <button class="btn" onclick="exportData()">导出JSON</button>
+      <button class="btn btn-primary" onclick="location.href='generator.html'">生成链接</button>
+    </div>
+
+    <div class="grid" id="summaryCards">
+      <div class="card"><h3>总点击数</h3><div class="value" id="totalClicks">0</div></div>
+      <div class="card"><h3>今日点击</h3><div class="value up" id="todayClicks">0</div></div>
+      <div class="card"><h3>独立来源</h3><div class="value" id="sourceCount">0</div></div>
+      <div class="card"><h3>项目数</h3><div class="value" id="projectCount">0</div></div>
+    </div>
+
+    <div class="section">
+      <div class="panel">
+        <h2>项目排行</h2>
+        <table id="projectTable"><tbody></tbody></table>
+      </div>
+      <div class="panel">
+        <h2>来源排行</h2>
+        <table id="sourceTable"><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom: 20px;">
+      <h2>24小时时段分布</h2>
+      <div class="chart" id="hourChart"></div>
+      <div class="chart-labels" id="hourLabels"></div>
+    </div>
+
+    <div class="panel">
+      <h2>最近点击记录</h2>
+      <table class="recent-table">
+        <thead><tr><th>时间</th><th>项目</th><th>来源</th></tr></thead>
+        <tbody id="recentTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let logs = [];
+    let apiMode = false;
+
+    async function loadData() {
+      // 尝试从 API 加载（如果部署了 Worker）
+      try {
+        const resp = await fetch('/stats?type=today');
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.results) {
+            logs = data.results.map(r => ({
+              project: r.project,
+              projectName: r.project_name,
+              source: r.source,
+              sourceName: r.source_name,
+              ts: r.created_at,
+              referrer: r.url
+            }));
+            apiMode = true;
+            document.getElementById('modeTag').textContent = '在线模式';
+            document.getElementById('modeTag').classList.remove('offline');
+            render();
+            return;
+          }
+        }
+      } catch(e) {}
+
+      // 回退到本地存储
+      try {
+        logs = JSON.parse(localStorage.getItem('qr_logs') || '[]');
+      } catch(e) { logs = []; }
+      apiMode = false;
+      document.getElementById('modeTag').textContent = '本地模式';
+      document.getElementById('modeTag').classList.add('offline');
+      render();
+    }
+
+    function render() {
+      if (!logs.length) {
+        document.querySelectorAll('.card .value').forEach(el => el.textContent = '0');
+        document.querySelectorAll('table tbody').forEach(el => el.innerHTML = '<tr><td colspan="3" class="empty">暂无数据</td></tr>');
+        document.getElementById('hourChart').innerHTML = '';
+        return;
+      }
+
+      // 汇总
+      document.getElementById('totalClicks').textContent = logs.length.toLocaleString();
+      const today = new Date().toDateString();
+      document.getElementById('todayClicks').textContent = logs.filter(l => new Date(l.ts).toDateString() === today).length;
+      document.getElementById('projectCount').textContent = new Set(logs.map(l => l.project)).size;
+      document.getElementById('sourceCount').textContent = new Set(logs.map(l => l.source)).size;
+
+      // 项目排行
+      const pCount = {};
+      logs.forEach(l => { pCount[l.projectName || l.project] = (pCount[l.projectName || l.project] || 0) + 1; });
+      const pMax = Math.max(...Object.values(pCount), 1);
+      const pSorted = Object.entries(pCount).sort((a,b) => b[1]-a[1]).slice(0, 8);
+      document.getElementById('projectTable').innerHTML = pSorted.map(([name, count]) => `
+        <tr>
+          <td>
+            <span class="tag tag-blue">${name}</span>
+            <div class="bar"><div class="bar-fill" style="width:${(count/pMax*100)}%"></div></div>
+          </td>
+          <td style="text-align:right;font-weight:600;width:60px">${count}</td>
+        </tr>
+      `).join('');
+
+      // 来源排行
+      const sCount = {};
+      logs.forEach(l => { sCount[l.sourceName || l.source] = (sCount[l.sourceName || l.source] || 0) + 1; });
+      const sMax = Math.max(...Object.values(sCount), 1);
+      const sSorted = Object.entries(sCount).sort((a,b) => b[1]-a[1]).slice(0, 8);
+      document.getElementById('sourceTable').innerHTML = sSorted.map(([name, count], i) => `
+        <tr>
+          <td>
+            <span class="tag ${i===0?'tag-green':'tag-orange'}">${name}</span>
+            <div class="bar"><div class="bar-fill ${i===0?'green':'orange'}" style="width:${(count/sMax*100)}%"></div></div>
+          </td>
+          <td style="text-align:right;font-weight:600;width:60px">${count}</td>
+        </tr>
+      `).join('');
+
+      // 24小时分布
+      const hours = new Array(24).fill(0);
+      logs.forEach(l => { hours[new Date(l.ts).getHours()]++; });
+      const hMax = Math.max(...hours, 1);
+      document.getElementById('hourChart').innerHTML = hours.map((h, i) => `
+        <div class="chart-bar ${h>0?'has-data':''}" style="height:${(h/hMax*100)}%" title="${i}:00 - ${h}次">
+          ${h>0?`<span class="tip">${h}</span>`:''}
+        </div>
+      `).join('');
+      const labelIndices = [0, 4, 8, 12, 16, 20];
+      document.getElementById('hourLabels').innerHTML = labelIndices.map(i => `<span>${i}h</span>`).join('');
+
+      // 最近记录
+      document.getElementById('recentTable').innerHTML = logs.slice(-20).reverse().map(l => `
+        <tr>
+          <td class="time">${new Date(l.ts).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+          <td><span class="tag tag-blue">${l.projectName || l.project}</span></td>
+          <td><span class="tag tag-orange">${l.sourceName || l.source}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function refreshData() { loadData(); showToast('已刷新'); }
+
+    function exportData() {
+      const blob = new Blob([JSON.stringify(logs, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `quark-stats-${Date.now()}.json`; a.click();
+      URL.revokeObjectURL(url);
+      showToast('已导出');
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
